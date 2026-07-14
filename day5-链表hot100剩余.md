@@ -350,3 +350,207 @@ class Solution {
 > **「小顶堆存 K 个头，弹出最小再补位。」**
 
 <p align="right"><i>练习日期：2026-07-13</i></p>
+
+---
+
+---
+
+## 题目：LRU 缓存（LRU Cache）
+
+**LeetCode 146 | Hot 100 | 难度：🟡 中等**
+
+### 题目描述
+
+请你设计并实现一个满足 **LRU（最近最少使用）缓存** 约束的数据结构。
+
+实现 `LRUCache` 类：
+
+- `LRUCache(int capacity)` — 以正整数作为容量初始化缓存
+- `int get(int key)` — 如果关键字存在则返回其值，否则返回 -1
+- `void put(int key, int value)` — 如果关键字已存在则更新其值；否则插入。当缓存容量达到上限时，它应该在写入新数据之前**删除最久未使用的数据**。
+
+> 要求 get 和 put 的时间复杂度均为 **O(1)**。
+
+### 示例
+
+```
+输入：
+["LRUCache", "put", "put", "get", "put", "get", "put", "get", "get", "get"]
+[[2],       [1,1],  [2,2],  [1],   [3,3],  [2],   [4,4],  [1],   [3],    [4]]
+输出：
+[null,       null,   null,   1,     null,   -1,    null,   -1,    3,      4]
+
+解释：
+LRUCache lRUCache = new LRUCache(2);
+lRUCache.put(1, 1);          // 缓存：{1=1}
+lRUCache.put(2, 2);          // 缓存：{1=1, 2=2}
+lRUCache.get(1);             // 返回 1
+lRUCache.put(3, 3);          // 淘汰 key 2，缓存：{1=1, 3=3}
+lRUCache.get(2);             // 返回 -1（没找到）
+lRUCache.put(4, 4);          // 淘汰 key 1，缓存：{4=4, 3=3}
+lRUCache.get(1);             // 返回 -1
+lRUCache.get(3);             // 返回 3
+lRUCache.get(4);             // 返回 4
+```
+
+---
+
+## 解法：哈希表 + 双向链表
+
+### 思路
+
+O(1) 的 get 和 put 需要两个数据结构的配合：
+
+| 需求 | 用啥 | 为什么 |
+|------|------|--------|
+| O(1) 查找 key → value | **哈希表** `HashMap<key, Node>` | 哈希表查 key 是 O(1) |
+| O(1) 增删节点 & 维护顺序 | **双向链表** | 链表头部 = 最近使用，尾部 = 最久未使用 |
+
+> **哈希表负责找，双向链表负责排。**
+
+### 把书架想象成 LRU
+
+灵茶山艾府用一个很妙的类比：
+
+> 把书（Node）一本本叠放在桌上：
+> - **get**：从书堆里找到这本书，抽出来放到最上面
+> - **put(已有)**：更新内容，抽出来放到最上面
+> - **put(新书)**：放到最上面；如果书太多，把最底下的那本扔掉
+
+双向链表让「抽出来」和「放到最上面」这两个操作都是 O(1)。
+
+### 数据结构设计
+
+```java
+private static class Node {
+    int key, value;
+    Node prev, next;
+    Node(int k, int v) { key = k; value = v; }
+}
+
+private final int capacity;
+private final Node dummy = new Node(0, 0);   // 哨兵节点，简化边界
+private final Map<Integer, Node> keyToNode;  // key → 节点
+```
+
+关键：**链表中不仅存 value，还要存 key**，这样在淘汰尾部节点时才能从哈希表中删除对应的 key。
+
+### 核心操作图解
+
+```
+dummy 是哨兵节点，构成环形双向链表：
+dummy.next = 最上面的书（最近使用）
+dummy.prev = 最底下的书（最久未使用）
+
+初始状态（capacity=2）：
+dummy ↔ dummy    (空链表)
+
+put(1,1)：
+dummy ↔ node(1,1) ↔ dummy
+         ↑最近        ↑最久
+
+put(2,2)：
+dummy ↔ node(2,2) ↔ node(1,1) ↔ dummy
+         ↑最近                 ↑最久
+
+get(1) → 把 1 移到最上面：
+dummy ↔ node(1,1) ↔ node(2,2) ↔ dummy
+         ↑最近                 ↑最久
+
+put(3,3) → 容量超了，淘汰最久 (2)：
+dummy ↔ node(3,3) ↔ node(1,1) ↔ dummy
+         ↑最近                 ↑最久
+```
+
+### 代码实现
+
+```java
+class LRUCache {
+    // 双向链表节点
+    private static class Node {
+        int key, value;
+        Node prev, next;
+        Node(int k, int v) { key = k; value = v; }
+    }
+
+    private final int capacity;
+    private final Node dummy = new Node(0, 0);  // 哨兵节点
+    private final Map<Integer, Node> keyToNode = new HashMap<>();
+
+    public LRUCache(int capacity) {
+        this.capacity = capacity;
+        dummy.prev = dummy;   // 初始时自己指向自己
+        dummy.next = dummy;
+    }
+
+    public int get(int key) {
+        Node node = getNode(key);
+        return node != null ? node.value : -1;
+    }
+
+    public void put(int key, int value) {
+        Node node = getNode(key);
+        if (node != null) {
+            node.value = value;  // 已有，直接更新
+            return;
+        }
+        node = new Node(key, value);
+        keyToNode.put(key, node);
+        pushFront(node);         // 新书放最上面
+        if (keyToNode.size() > capacity) {
+            Node backNode = dummy.prev;   // 最久未使用
+            keyToNode.remove(backNode.key);
+            remove(backNode);
+        }
+    }
+
+    // getNode: 找到节点并移到最上面
+    private Node getNode(int key) {
+        if (!keyToNode.containsKey(key)) return null;
+        Node node = keyToNode.get(key);
+        remove(node);      // 从当前位置抽出来
+        pushFront(node);   // 放到最上面
+        return node;
+    }
+
+    // 删除节点
+    private void remove(Node x) {
+        x.prev.next = x.next;
+        x.next.prev = x.prev;
+    }
+
+    // 头插（放在 dummy 后面）
+    private void pushFront(Node x) {
+        x.prev = dummy;
+        x.next = dummy.next;
+        x.prev.next = x;
+        x.next.prev = x;
+    }
+}
+```
+
+### 复杂度分析
+
+| 操作 | 时间复杂度 | 说明 |
+|------|-----------|------|
+| `get` | **O(1)** | 哈希表查 + 链表删除/头插 |
+| `put` | **O(1)** | 同上，更新或淘汰尾部 |
+| 🧠 空间 | **O(capacity)** | 哈希表 + 链表节点 |
+
+---
+
+## 小总结
+
+| 要点 | 说明 |
+|------|------|
+| 算法名称 | 哈希表 + 双向链表 |
+| 算法类型 | 数据结构设计、链表应用 |
+| 核心技巧 | **哈希表 O(1) 定位，双向链表 O(1) 移动；dummy 节点省去大量判空** |
+| 适用场景 | 缓存淘汰策略、需要同时满足 O(1) 查找和 O(1) 增删的场景 |
+| 易错点 | 链表节点必须存 key（淘汰时要从哈希表删除）；dummy 环形链表初始化时自己指向自己；双向链表删除要改两个方向的指针 |
+
+### 一句话记住
+
+> **「哈希表定位，双向链表排序——LRU 的黄金搭档。」**
+
+<p align="right"><i>练习日期：2026-07-14</i></p>
