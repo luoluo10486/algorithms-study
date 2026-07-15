@@ -389,4 +389,159 @@ class Solution {
 
 ---
 
+## 题目：四数之和（4Sum）
+
+**LeetCode 18 | 代码随想录 | 难度：🟡 中等**
+
+### 题目描述
+
+给你一个由 `n` 个整数组成的数组 `nums` 和一个目标值 `target`，请你找出并返回满足下述全部条件且**不重复**的四元组 `[nums[a], nums[b], nums[c], nums[d]]`：
+
+- `0 <= a, b, c, d < n`
+- `a、b、c` 和 `d` **互不相同**
+- `nums[a] + nums[b] + nums[c] + nums[d] == target`
+
+### 示例
+
+```
+输入：nums = [1,0,-1,0,-2,2], target = 0
+输出：[[-2,-1,1,2],[-2,0,0,2],[-1,0,0,1]]
+
+输入：nums = [2,2,2,2,2], target = 8
+输出：[[2,2,2,2]]
+```
+
+---
+
+## 解法：排序 + 双指针（nSum 模板）
+
+### 思路
+
+四数之和是**三数之和的嵌套扩展**——外面再套一层循环就对了。
+
+```
+三数之和：  固定 i → 双指针 j, k
+四数之和：  固定 a → 固定 b → 双指针 j, k
+```
+
+这样从 O(n⁴) 降到 **O(n³)**，三数之和的剪枝和去重策略全部复用过来。
+
+**与三数之和对比：**
+
+| | 三数之和 | 四数之和 |
+|---|---------|---------|
+| 外层循环 | 固定 1 个数 | 固定 **2** 个数（双层） |
+| 内层双指针 | 1 层 while | 1 层 while |
+| 去重 | 3 层（i, j, k） | **4 层**（a, b, j, k） |
+| 剪枝 | 2 条（break + continue） | **4 条**（内外各 2 条） |
+| 溢出风险 | 不存在 | `int` 相加可能溢出 → 用 **`long`** |
+
+**关键细节：`long` 类型**——`nums` 是 `int[]`，但四个 `int` 相加可能溢出（如 `10⁹ + 10⁹ + 10⁹ + 10⁹ > 2³¹-1`），所以 `x`、`y`、`s` 都声明为 `long`。
+
+### 思考方式图解
+
+```
+nums = [1,0,-1,0,-2,2], target = 0
+排序后 = [-2,-1,0,0,1,2]
+
+a=0, x=-2
+  b=1, y=-1
+    j=2(0), k=5(2) → s=-1 <0 → j++
+    j=3(0), k=5(2) → s=-1 <0 → j++
+    j=4(1), k=5(2) → s=0  → [-2,-1,1,2] ✅
+  b=2, y=0  ← b>a+1 且 y==nums[1]=0? 不，y(0)≠nums[1](-1)
+    j=3(0), k=5(2) → s=0  → [-2,0,0,2] ✅
+  b=3, y=0, 与 nums[2] 重复 → continue
+  ...后续 b 的剪枝...
+
+a=1, x=-1
+  b=2, y=0
+    j=3(0), k=5(2) → s=1 >0 → k--
+    j=3(0), k=4(1) → s=0  → [-1,0,0,1] ✅
+  ...
+
+结果：[[-2,-1,1,2], [-2,0,0,2], [-1,0,0,1]]
+```
+
+### 代码实现
+
+```java
+class Solution {
+    public List<List<Integer>> fourSum(int[] nums, int target) {
+        Arrays.sort(nums);
+        List<List<Integer>> ans = new ArrayList<>();
+        int n = nums.length;
+
+        for (int a = 0; a < n - 3; a++) {
+            long x = nums[a];
+
+            // 跳过重复
+            if (a > 0 && x == nums[a - 1]) continue;
+
+            // 剪枝一：最小的四个数之和 > target → 不可能
+            if (x + nums[a + 1] + nums[a + 2] + nums[a + 3] > target) break;
+
+            // 剪枝二：当前数 + 最大的三个数 < target → 当前数太小
+            if (x + nums[n - 1] + nums[n - 2] + nums[n - 3] < target) continue;
+
+            for (int b = a + 1; b < n - 2; b++) {
+                long y = nums[b];
+
+                // 跳过重复（注意：b 只跳过 a+1 之后的重复）
+                if (b > a + 1 && y == nums[b - 1]) continue;
+
+                // 剪枝三：a+b+最小的两个 > target → break
+                if (x + y + nums[b + 1] + nums[b + 2] > target) break;
+
+                // 剪枝四：a+b+最大的两个 < target → continue
+                if (x + y + nums[n - 1] + nums[n - 2] < target) continue;
+
+                int j = b + 1, k = n - 1;
+                while (j < k) {
+                    long s = x + y + nums[j] + nums[k];
+                    if (s < target) {
+                        j++;
+                    } else if (s > target) {
+                        k--;
+                    } else {
+                        ans.add(List.of((int) x, (int) y, nums[j], nums[k]));
+                        // 跳过重复
+                        for (j++; j < k && nums[j] == nums[j - 1]; j++);
+                        for (k--; j < k && nums[k] == nums[k + 1]; k--);
+                    }
+                }
+            }
+        }
+        return ans;
+    }
+}
+```
+
+### 复杂度分析
+
+| 维度 | 结果 |
+|------|------|
+| ⏱ 时间复杂度 | **O(n³)** — 三层循环 + 双指针扫描 |
+| 🧠 空间复杂度 | **O(1)**（不计排序及输出数组） |
+
+---
+
+## 小总结
+
+| 要点 | 说明 |
+|------|------|
+| 算法名称 | 排序 + 双指针 |
+| 算法类型 | 双指针、数组 |
+| 核心技巧 | **三数之和外面再套一层循环，nSum 系列模板化** |
+| 去重策略 | 4 层去重（a、b、j、k 各一层），注意 b 的去重起点是 `a+1` |
+| 剪枝优化 | 内外各 2 条剪枝：最小的 N 个 > target break；当前 + 最大的 N 个 < target continue |
+| 与三数之区别 | 多一层循环 + `long` 防溢出 + 剪枝多 2 条 |
+| 易错点 | **`long`**——四个 int 相加可能溢出，`x`、`y`、`s` 都要用 `long` |
+
+### 一句话记住
+
+> **「三数套一层就是四数，long 防溢出，剪枝翻倍。」**
+
+---
+
 *练习日期：2026-07-15*
