@@ -365,4 +365,143 @@ class Solution {
 
 ---
 
-*练习日期：2026-07-18*
+## 题目：接雨水（Trapping Rain Water）
+
+**LeetCode 42 | 双指针 Hot100 | 难度：🔴 困难**
+
+### 题目描述
+
+给定 `n` 个非负整数表示每个宽度为 1 的柱子的高度图，计算按此排列的柱子，下雨之后能接多少雨水。
+
+### 示例
+
+```
+输入：height = [0,1,0,2,1,0,1,3,2,1,2,1]
+输出：6
+
+输入：height = [4,2,0,3,2,5]
+输出：9
+```
+
+---
+
+## 解法：对撞双指针
+
+### 思路
+
+每个位置能接的雨水量取决于它**左右两侧最大高度的较小值 - 当前高度**。
+
+即：`water[i] = min(leftMax[i], rightMax[i]) - height[i]`
+
+暴力做法是每个位置都往左右扫一次找最大值，O(n²)。预处理前缀最大值和后缀最大值可以降到 O(n) + O(n) 空间。
+
+双指针解法更进一步——**在 O(n) 时间 + O(1) 空间内完成**。
+
+核心思想：**左右指针向中间靠拢，同时维护 `premax`（左侧已遍历的最大值）和 `sufmax`（右侧已遍历的最大值）来决定哪边先结算**。
+
+```
+对于位置 left：
+  它左边的最大高度 premax 是确定的（已经遍历过）
+  它右边的最大高度至少是 sufmax（右侧遍历过的最大值）
+  
+  如果 premax < sufmax：
+    那么 left 位置能接的水量 = premax - height[left]（因为短板在左边，右边的最大值只可能 >= sufmax > premax，所以实际短板就是 premax）
+    结算后 left++
+  
+  反之：
+    同理，right 位置的水量 = sufmax - height[right]
+    结算后 right--
+```
+
+**为什么是对的？**「短板原理」——`premax` 和 `sufmax` 中较小的那个就是当前边界在结算时的实际限制，因为在另一侧即使有更高的柱子，水也只会从较矮的一边流出去。
+
+### 思考方式图解
+
+```
+height = [0,1,0,2,1,0,1,3,2,1,2,1]
+
+初始：premax=0, sufmax=0, left=0(0), right=11(1)
+
+left=0(0):  premax=max(0,0)=0,  sufmax=max(0,1)=1
+  premax(0) < sufmax(1) → ans+=0-0=0, left=1
+
+left=1(1):  premax=max(0,1)=1,  sufmax=max(1,1)=1
+  premax(1) >= sufmax(1) → ans+=1-1=0, right=10
+
+right=10(2): premax=1, sufmax=max(1,2)=2
+  premax(1) < sufmax(2) → ans+=1-1=0, left=2
+
+left=2(0):  premax=max(1,0)=1,  sufmax=2
+  premax(1) < sufmax(2) → ans+=1-0=1, left=3  ← 接到 1 单位水
+
+left=3(2):  premax=max(1,2)=2,  sufmax=2
+  premax(2) >= sufmax(2) → ans+=2-2=0, right=9
+
+right=9(1): premax=2, sufmax=max(2,1)=2
+  premax(2) >= sufmax(2) → ans+=2-1=1, right=8  ← 接到 1 单位水
+
+... 继续结算
+
+结果：6 ✅
+```
+
+### 代码实现
+
+```java
+class Solution {
+    public int trap(int[] height) {
+        int ans = 0;
+        int premax = 0;   // 左侧已遍历的最大高度
+        int sufmax = 0;   // 右侧已遍历的最大高度
+        int left = 0;
+        int right = height.length - 1;
+
+        while (left < right) {
+            // 先更新两侧的最大值
+            premax = Math.max(premax, height[left]);
+            sufmax = Math.max(sufmax, height[right]);
+
+            // 短板决定了当前能接多少水
+            if (premax < sufmax) {
+                // 左边是短板，结算 left 位置
+                ans += premax - height[left];
+                left++;
+            } else {
+                // 右边是短板（或相等），结算 right 位置
+                ans += sufmax - height[right];
+                right--;
+            }
+        }
+
+        return ans;
+    }
+}
+```
+
+### 复杂度分析
+
+| 维度 | 结果 |
+|------|------|
+| ⏱ 时间复杂度 | **O(n)** — 左右指针各遍历一次 |
+| 🧠 空间复杂度 | **O(1)** — 仅用了几个变量 |
+
+---
+
+## 小总结
+
+| 要点 | 说明 |
+|------|------|
+| 算法名称 | 对撞双指针（维护左右最大高度） |
+| 算法类型 | 双指针、动态规划 |
+| 核心技巧 | **同时维护 premax 和 sufmax，两者中较小的就是当前柱子的"短板"，直接结算** |
+| 与 11. 盛水容器区别 | 盛水容器找的是**两根柱子之间的最大面积**；接雨水是**每根柱子单独结算自己的积水量** |
+| 为什么能 O(1) 空间 | 因为 `premax < sufmax` 时，left 位置的水量已经由 premax 决定了，不需要知道右边具体的最大值（已知它 ≥ sufmax > premax 就够了） |
+| 关联题目 | [11. 盛最多水的容器](day10-双指针hot100+代码随想录.md)——对撞双指针前驱题 |
+
+### 一句话记住
+
+> **「左右对撞，维护两侧最大值，短板在哪边就结算哪边。」**
+
+---
+
+*练习日期：2026-07-19*
