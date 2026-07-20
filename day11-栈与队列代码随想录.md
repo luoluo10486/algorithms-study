@@ -834,4 +834,121 @@ class Solution {
 
 ---
 
+## 题目：前 K 个高频元素（Top K Frequent Elements）
+
+**LeetCode 347 | 代码随想录 | 难度：🟡 中等**
+
+### 题目描述
+
+给你一个整数数组 `nums` 和一个整数 `k`，请你返回其中出现频率前 `k` 高的元素。你可以按**任意顺序**返回答案。
+
+### 示例
+
+```
+输入：nums = [1,1,1,2,2,3], k = 2
+输出：[1,2]
+
+输入：nums = [1], k = 1
+输出：[1]
+```
+
+---
+
+## 解法：桶排序（HashMap 计数 + 频次桶）
+
+### 思路
+
+题目要求前 k 个高频元素，常规思路可以想到**优先队列（小顶堆）**，但还另有一种巧妙的 **桶排序** 解法：
+
+```
+1. 统计频次：用 HashMap 统计每个元素的出现次数
+2. 构建桶：以频次为下标，把元素放进对应的桶里
+3. 取出结果：从高频桶往低频桶遍历，取前 k 个元素
+```
+
+**为什么用桶？** 桶排序利用了频次的范围是 `[1, maxCnt]` 这个性质，频次本身就是天然的有序下标，省去了堆排序的 O(log k) 开销。
+
+### 思考方式图解
+
+```
+nums = [1,1,1,2,2,3], k = 2
+
+Step 1: 统计频次
+  {1:3, 2:2, 3:1}  → maxCnt = 3
+
+Step 2: 构建桶（下标 = 频次）
+  buckets[0] = []     （不用，频次从 1 开始）
+  buckets[1] = [3]    （3 出现 1 次）
+  buckets[2] = [2]    （2 出现 2 次）
+  buckets[3] = [1]    （1 出现 3 次）
+
+Step 3: 从高到低，取前 k 个
+  i=3: buckets[3] = [1] → ans[0]=1, k=1
+  i=2: buckets[2] = [2] → ans[1]=2, k=0 → 结束
+
+结果：[1, 2] ✅
+```
+
+### 代码实现
+
+```java
+class Solution {
+    public int[] topKFrequent(int[] nums, int k) {
+        // Step 1: 统计每个元素的频次
+        Map<Integer, Integer> cnt = new HashMap<>();
+        for (int x : nums) {
+            cnt.put(x, cnt.getOrDefault(x, 0) + 1);
+        }
+
+        // Step 2: 构建频次桶（下标 = 频次）
+        int maxCnt = Collections.max(cnt.values());              // 最大频次
+        List<Integer>[] buckets = new ArrayList[maxCnt + 1];     // 频次范围 [0, maxCnt]
+        for (int i = 0; i < maxCnt + 1; i++) {
+            buckets[i] = new ArrayList<>();
+        }
+        for (Map.Entry<Integer, Integer> e : cnt.entrySet()) {
+            buckets[e.getValue()].add(e.getKey());               // 按频次放入对应桶
+        }
+
+        // Step 3: 从高到低取 k 个元素
+        int[] ans = new int[k];
+        int j = 0;
+        for (int i = maxCnt; j < k; i--) {                       // 从频次最高的桶开始遍历
+            for (int x : buckets[i]) {
+                ans[j++] = x;
+            }
+        }
+        return ans;
+    }
+}
+```
+
+### 复杂度分析
+
+| 维度 | 结果 |
+|------|------|
+| ⏱ 时间复杂度 | **O(n)** — 统计 O(n) + 入桶 O(n) + 取结果 O(n) |
+| 🧠 空间复杂度 | **O(n)** — HashMap + 桶数组 |
+
+> 相比堆排序的 O(n log k)，桶排序在**频次范围可控**的场景下可以达到真正的 O(n)。
+
+---
+
+## 小总结
+
+| 要点 | 说明 |
+|------|------|
+| 算法名称 | 桶排序（频次桶） |
+| 算法类型 | 哈希表、桶排序 |
+| 核心技巧 | **HashMap 统计频次后，以频次为下标构建桶，直接按频次从高到低取前 k 个** |
+| 与堆排序对比 | 堆排序 O(n log k)，桶排序 O(n)（频次范围不大时更优） |
+| 前提条件 | 频次范围 `[1, maxCnt]` 可控且能接受 O(maxCnt) 空间 |
+| 易错点 | `Collections.max(cnt.values())` 拿到的是最大频次，桶数组长度是 `maxCnt + 1` 而不是 `maxCnt`；`buckets[0]` 不会用到 |
+
+### 一句话记住
+
+> **「HashMap 计数，频次作桶下标——从高到低取 k 个。」**
+
+---
+
 *练习日期：2026-07-20*
