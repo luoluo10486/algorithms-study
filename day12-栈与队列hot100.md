@@ -238,4 +238,139 @@ class MinStack {
 
 ---
 
+## 题目：字符串解码（Decode String）
+
+**LeetCode 394 | 栈 Hot100 | 难度：🟡 中等**
+
+### 题目描述
+
+给定一个经过编码的字符串，返回它解码后的字符串。
+
+编码规则为：`k[encoded_string]`，表示其中方括号内部的 `encoded_string` 正好重复 `k` 次。注意 `k` 保证为正整数。
+
+你可以认为输入字符串总是有效的；输入字符串中没有额外的空格，且输入的方括号总是符合格式要求的。
+
+### 示例
+
+```
+输入：s = "3[a]2[bc]"
+输出："aaabcbc"
+
+输入：s = "3[a2[c]]"
+输出："accaccacc"
+
+输入：s = "2[abc]3[cd]ef"
+输出："abcabccdcdcdef"
+```
+
+---
+
+## 解法：双栈（或单栈存 Pair）
+
+### 思路
+
+字符串解码的核心是处理**嵌套**的 `k[...]` 结构——栈天生适合处理这种逐层展开的问题。
+
+核心思想：**遇到 `[` 时，把当前的字符串和数字存入栈中，重置 StringBuilder 和 k 开始处理子问题；遇到 `]` 时，弹出栈顶的 Pair，将当前累积的字符串重复 k 次拼到栈顶字符串后面。**
+
+```
+关键数据结构：栈中存 Pair("当前层已拼好的字符串", 重复次数)
+数字 k：用一个变量累积，处理多位数（如 "12[abc]"）
+字符串 res：用 StringBuilder 累积当前层的字符
+```
+
+### 思考方式图解
+
+```
+s = "3[a2[c]]"
+
+遍历过程：
+  '3' → k = 3
+  '[' → push ("", 3), 重置 res="", k=0
+  'a' → res = "a"
+  '2' → k = 2
+  '[' → push ("a", 2), 重置 res="", k=0
+  'c' → res = "c"
+  ']' → pop ("a", 2) → res = "a" + "c"×2 = "acc"
+  ']' → pop ("", 3)  → res = "" + "acc"×3 = "accaccacc"
+
+结果："accaccacc" ✅
+```
+
+```
+s = "2[abc]3[cd]ef"
+
+遍历过程：
+  '2' → k = 2
+  '[' → push ("", 2)
+  "abc" → res = "abc"
+  ']' → pop ("", 2) → res = "abcabc"
+  '3' → k = 3
+  '[' → push ("abcabc", 3)
+  "cd" → res = "cd"
+  ']' → pop ("abcabc", 3) → res = "abcabc" + "cd"×3 = "abcabccdcdcd"
+  "ef" → res = "abcabccdcdcdef"
+
+结果："abcabccdcdcdef" ✅
+```
+
+### 代码实现
+
+```java
+class Solution {
+    // 栈中存 Pair：当前层已拼好的字符串 和 重复次数
+    private record Pair(String s, int k) {}
+
+    public String decodeString(String s) {
+        Deque<Pair> stack = new ArrayDeque<>();
+        StringBuilder res = new StringBuilder();
+        int k = 0;
+
+        for (char c : s.toCharArray()) {
+            if (Character.isLetter(c)) {
+                res.append(c);                        // 普通字母，追加到当前层
+            } else if (Character.isDigit(c)) {
+                k = k * 10 + (c - '0');                // 累积多位数
+            } else if (c == '[') {
+                stack.push(new Pair(res.toString(), k)); // 保存现场
+                res.setLength(0);                      // 开始子问题
+                k = 0;
+            } else { // c == ']'
+                Pair p = stack.pop();                  // 恢复上一层的字符串和 k
+                // 当前 res 重复 p.k 次，拼到 p.s 后面
+                res = new StringBuilder(p.s).repeat(res, p.k);
+            }
+        }
+
+        return res.toString();
+    }
+}
+```
+
+### 复杂度分析
+
+| 维度 | 结果 |
+|------|------|
+| ⏱ 时间复杂度 | **O(n)** — 每个字符处理一次，展开后的字符串拼接耗时与最终长度成正比 |
+| 🧠 空间复杂度 | **O(n)** — 栈 + 展开后的字符串 |
+
+---
+
+## 小总结
+
+| 要点 | 说明 |
+|------|------|
+| 算法名称 | 栈模拟解码（双栈思想） |
+| 算法类型 | 栈、字符串 |
+| 核心技巧 | **遇到 `[` 存现场入栈，遇到 `]` 恢复现场展开重复——嵌套结构天然适合栈** |
+| 关键细节 | `k * 10 + (c - '0')` 处理多位数；`res.setLength(0)` 重置 StringBuilder 比 `new` 更省性能 |
+| 另一种写法 | 可以用两个栈（数字栈 + 字符串栈）等价实现，但 Pair 封装更清晰 |
+| 易错点 | `]` 解码时：`p.s` 是上一层已拼好的字符串，`res` 是当前层要重复的内容，顺序别搞反 |
+
+### 一句话记住
+
+> **「左括号存现场，右括号展开重复——栈里放 Pair，嵌套不怕。」**
+
+---
+
 *练习日期：2026-07-21*
