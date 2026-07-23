@@ -267,4 +267,163 @@ class Solution {
 
 ---
 
+## 题目：数据流的中位数（Find Median from Data Stream）
+
+**LeetCode 295 | 堆 Hot100 | 难度：🔴 困难**
+
+### 题目描述
+
+中位数是有序整数列表中的中间值。如果列表的大小是偶数，则没有中间值，中位数是两个中间值的平均值。
+
+- 如果 `n` 为奇数，中位数 = 第 `(n+1)/2` 个元素
+- 如果 `n` 为偶数，中位数 = 第 `n/2` 个元素 与 第 `(n/2)+1` 个元素的平均值
+
+实现 `MedianFinder` 类：
+
+- `MedianFinder()` — 初始化对象
+- `void addNum(int num)` — 将数据流中的整数添加到数据结构中
+- `double findMedian()` — 返回到目前为止所有元素的中位数
+
+### 示例
+
+```
+输入：
+["MedianFinder","addNum","addNum","findMedian","addNum","findMedian"]
+[[],[1],[2],[],[3],[]]
+
+输出：
+[null,null,null,1.5,null,2.0]
+
+解释：
+MedianFinder mf = new MedianFinder();
+mf.addNum(1);
+mf.addNum(2);
+mf.findMedian();   // 返回 1.5
+mf.addNum(3);
+mf.findMedian();   // 返回 2.0
+```
+
+---
+
+## 解法：双堆（大顶堆 + 小顶堆）
+
+### 思路
+
+最直观的想法是每次求中位数时排序，但这样每次都是 O(n log n)。双堆法可以在 **addNum O(log n)**、**findMedian O(1)** 内完成。
+
+核心思想：**把数据分成两半——左半用大顶堆（最大值在堆顶），右半用小顶堆（最小值在堆顶），中位数由两个堆顶决定。**
+
+```
+       左半（大顶堆）         右半（小顶堆）
+       ┌─────┐               ┌─────┐
+       │ max │               │ min │
+       └─────┘               └─────┘
+        ...     ← 分界线 →     ...
+       smaller               larger
+           
+堆顶就是中位数的候选：
+  奇数个元素：左堆多 1 个 → 左堆顶 = 中位数
+  偶数个元素：两堆大小相等 → (左堆顶 + 右堆顶) / 2
+```
+
+**平衡策略**（代码采用的方式）：
+
+始终保持左堆大小 ≥ 右堆大小（最多多 1 个）。
+
+```
+addNum(num):
+  如果左右大小相等：
+    → 先进右堆，再把右堆最小弹到左堆（确保新元素进入左堆后是左堆里最大的）
+  否则（左堆多 1 个）：
+    → 先进左堆，再把左堆最大弹到右堆（平衡两堆）
+```
+
+这样设计使得左右两堆的元素数量始终满足：`left.size() - right.size()` 要么是 0，要么是 1。
+
+### 思考方式图解
+
+```
+操作序列：addNum(1) → addNum(2) → addNum(3)
+
+addNum(1): left.size()==right.size() → 先进 right，再弹回 left
+  right: []        → [1]   → pop 1
+  left:  []        →       → [1]
+  left=[1], right=[]
+
+addNum(2): left.size()≠right.size() → 先进 left，再弹到 right
+  left: [1] → [1,2] → pop 2 → [1]
+  right: [] →       →      → [2]
+  left=[1], right=[2]
+
+findMedian(): 两堆大小相等 → (1+2)/2 = 1.5 ✅
+
+addNum(3): left.size()==right.size() → 先进 right，再弹回 left
+  right: [2] → [2,3] → pop 2
+  left:  [1] →       → [1,2]
+  left=[1,2], right=[3]
+
+findMedian(): 左堆多 1 个 → left.peek() = 2.0 ✅
+```
+
+### 代码实现
+
+```java
+class MedianFinder {
+
+    // 大顶堆：存放左半部分较小的数，堆顶是左半的最大值
+    private final PriorityQueue<Integer> left = new PriorityQueue<>((a, b) -> b - a);
+    // 小顶堆：存放右半部分较大的数，堆顶是右半的最小值
+    private final PriorityQueue<Integer> right = new PriorityQueue<>();
+
+    public MedianFinder() {}
+
+    public void addNum(int num) {
+        if (left.size() == right.size()) {
+            // 两堆平衡 → 新元素进 right，再把 right 最小弹到 left
+            right.offer(num);
+            left.offer(right.poll());
+        } else {
+            // 左堆多 1 个 → 新元素进 left，再把 left 最大弹到 right
+            left.offer(num);
+            right.offer(left.poll());
+        }
+    }
+
+    public double findMedian() {
+        // 左堆总是 ≥ 右堆，且最多多 1 个
+        if (left.size() > right.size()) {
+            return left.peek();
+        }
+        return (left.peek() + right.peek()) / 2.0;
+    }
+}
+```
+
+### 复杂度分析
+
+| 操作 | 时间复杂度 | 说明 |
+|------|-----------|------|
+| `addNum` | **O(log n)** | 堆的入队/出队操作 |
+| `findMedian` | **O(1)** | 直接取堆顶 |
+| 🧠 空间 | **O(n)** | 两个堆存储所有元素 |
+
+---
+
+## 小总结
+
+| 要点 | 说明 |
+|------|------|
+| 算法名称 | 双堆法（大顶堆 + 小顶堆） |
+| 算法类型 | 堆、设计 |
+| 核心技巧 | **左大顶 + 右小顶，保持平衡——奇数时左堆顶就是中位数，偶数时两堆顶取平均** |
+| 平衡策略 | 左右相等时 → 先进右再回左（左堆 +1）；左多时 → 先进左再到右（堆平衡） |
+| 关联题目 | [480. 滑动窗口中位数](https://leetcode.cn/problems/sliding-window-median/)——更复杂的双堆 + 延迟删除 |
+| 易错点 | `findMedian` 返回 `double`，偶数时要除以 `2.0` 而不是 `2`；大顶堆用 `(a,b) -> b-a` 或 `Collections.reverseOrder()` |
+
+### 一句话记住
+
+> **「左大顶右小顶，平衡两堆——堆顶就是中位数的候选人。」**
+
+---
+
 *练习日期：2026-07-23*
