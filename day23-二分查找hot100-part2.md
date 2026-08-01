@@ -429,4 +429,139 @@ class Solution {
 
 ---
 
+## 题目：搜索旋转排序数组（Search in Rotated Sorted Array）
+
+**LeetCode 33 | 二分查找 Hot100 | 难度：🟡 中等**
+
+### 题目描述
+
+整数数组 `nums` 按升序排列，数组中的值**互不相同**。
+
+在传递给函数之前，`nums` 在预先未知的某个下标 `k` 上进行了**旋转**（下标从 0 开始计数）。例如 `[0,1,2,4,5,6,7]` 在下标 3 处经旋转后可能变为 `[4,5,6,7,0,1,2]`。
+
+给你旋转后的数组 `nums` 和一个整数 `target`，如果 `nums` 中存在这个目标值，则返回它的下标，否则返回 `-1`。
+
+你必须设计一个时间复杂度为 **O(log n)** 的算法解决此问题。
+
+### 示例
+
+```
+输入：nums = [4,5,6,7,0,1,2], target = 0
+输出：4
+
+输入：nums = [4,5,6,7,0,1,2], target = 3
+输出：-1
+
+输入：nums = [1], target = 0
+输出：-1
+```
+
+---
+
+## 解法：找最小值 + 分段二分（复用模板）
+
+### 思路
+
+旋转数组被最小值分成**两段递增区间**，target 必然在其中一段。所以可以**先找到最小值的位置 `i`，再判断 target 在哪一段，对该段做二分**。
+
+```
+步骤：
+1. 用 153 的模板找到最小值下标 i
+2. 判断 target 与 nums[n-1]（数组末尾）的大小关系：
+   - target > nums[n-1] → target 在前半段（大段）[0, i)，二分区间 (-1, i)
+   - target ≤ nums[n-1] → target 在后半段（小段）[i, n-1]，二分区间 (i-1, n)
+3. 在该区间内用 lowerBound 二分查找
+```
+
+**为什么用 `nums[n-1]` 判断？** 旋转后数组是「大段 + 小段」，`nums[n-1]` 是小段的最后一个元素。如果 target 比它大，说明 target 只可能在前半段；否则在后半段。
+
+### 思考方式图解
+
+```
+nums = [4,5,6,7,0,1,2], target = 0
+
+Step 1: 找最小值
+  findMin → i = 4（nums[4]=0）
+
+Step 2: 判断在哪一段
+  target(0) ≤ nums[6](2) → 在后半段 → 二分区间 (i-1, n) = (3, 7)
+
+Step 3: lowerBound(nums, 3, 7, 0)
+  mid=5: nums[5]=1 > 0 → right=5
+  mid=4: nums[4]=0 == 0 → right=4
+  left+1==right → nums[4]==0 → 返回 4 ✅
+```
+
+### 代码实现
+
+```java
+class Solution {
+    public int search(int[] nums, int target) {
+        int i = findMin(nums);     // 最小值下标（= 旋转点）
+        int n = nums.length;
+
+        // target 在哪一段？
+        if (target > nums[n - 1]) {
+            return lowerBound(nums, -1, i, target);      // 前半段 (大段)
+        }
+        return lowerBound(nums, i - 1, n, target);       // 后半段 (小段)
+    }
+
+    // 开区间二分：在 (left, right) 中找 target，找不到返回 -1
+    private int lowerBound(int[] nums, int left, int right, int target) {
+        while (left + 1 < right) {
+            int mid = left + (right - left) / 2;
+            if (nums[mid] < target) {
+                left = mid;
+            } else {
+                right = mid;
+            }
+        }
+        return nums[right] == target ? right : -1;
+    }
+
+    // 153 模板：找最小值下标
+    private int findMin(int[] nums) {
+        int n = nums.length;
+        int left = -1;
+        int right = n - 1;
+        while (left + 1 < right) {
+            int mid = left + (right - left) / 2;
+            if (nums[mid] < nums[n - 1]) {   // 和数组末尾比较
+                right = mid;
+            } else {
+                left = mid;
+            }
+        }
+        return right;
+    }
+}
+```
+
+### 复杂度分析
+
+| 维度 | 结果 |
+|------|------|
+| ⏱ 时间复杂度 | **O(log n)** — 找最小值 O(log n) + 二分 O(log n) |
+| 🧠 空间复杂度 | **O(1)** — 仅用了几个变量 |
+
+---
+
+## 小总结
+
+| 要点 | 说明 |
+|------|------|
+| 算法名称 | 找最小值 + 分段二分 |
+| 算法类型 | 二分查找、数组 |
+| 核心技巧 | **先 findMin 定位旋转点，用 `target > nums[n-1]` 判断在前半段还是后半段，再对那段二分** |
+| 模板复用 | 直接复用了 153（findMin）和开区间 lowerBound 两个模板 |
+| 边界处理 | 前半段开区间 `(-1, i)`，后半段 `(i-1, n)`——注意区间定义不能重叠 |
+| 关联题目 | [153. 寻找旋转排序数组中的最小值](day23-二分查找hot100-part2.md)——findMin 的来源 |
+
+### 一句话记住
+
+> **「先找旋转点，比末尾定段，再对那段二分。」**
+
+---
+
 *练习日期：2026-08-01*
