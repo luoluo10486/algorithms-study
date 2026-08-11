@@ -254,4 +254,133 @@ class Solution {
 
 ---
 
+## 题目：单词拆分（Word Break）
+
+**LeetCode 139 | 动态规划 Hot100 | 难度：🟡 中等**
+
+### 题目描述
+
+给你一个字符串 `s` 和一个字符串列表 `wordDict` 作为字典。如果可以利用字典中出现的一个或多个单词拼接出 `s` 则返回 `true`。
+
+**注意**：不要求字典中出现的单词全部都使用，并且字典中的单词可以重复使用。
+
+### 示例
+
+```
+输入：s = "leetcode", wordDict = ["leet", "code"]
+输出：true
+解释：s 可以由 "leet" + "code" 拼接成
+
+输入：s = "applepenapple", wordDict = ["apple", "pen"]
+输出：true
+
+输入：s = "catsandog", wordDict = ["cats","dog","sand","and","cat"]
+输出：false
+```
+
+---
+
+## 解法：记忆化搜索（后缀拆分 + 剪枝）
+
+### 思路
+
+核心思想：**判断 `s[0..i]` 能否被拆分，就看是否存在一个 `j < i`，使得 `s[j..i]` 是字典中的单词，且 `s[0..j]` 也能被拆分**。
+
+```
+dfs(i)：s 的前 i 个字符（s[0..i)）能否被字典中的单词拼接
+
+  如果 i == 0 → 空串可以被拼接（返回 1）
+  枚举 j 从 i-1 往前（尝试最后一段 s[j..i)）：
+    如果 s[j..i) 在字典中 且 dfs(j) == 1 → 返回 1
+  都试过不行 → 返回 0
+```
+
+**maxLen 剪枝**：最后一段的长度不可能超过字典中最长单词的长度。所以 `j` 从 `i-1` 往前最多枚举 `maxLen` 个位置——把 O(i) 的枚举压缩到 O(maxLen)。
+
+### 思考方式图解
+
+```
+s = "leetcode", wordDict = ["leet", "code"], maxLen = 4
+
+dfs(8)：尝试最后一段
+  j=7: "e" 不在字典 → 继续
+  j=6: "de" 不在字典 → 继续
+  j=5: "ode" 不在字典 → 继续
+  j=4: "code" 在字典 ✅ 且 dfs(4)?
+    dfs(4)：尝试最后一段
+      j=3: "t" 不在字典
+      j=2: "et" 不在字典
+      j=1: "eet" 不在字典
+      j=0: "leet" 在字典 ✅ 且 dfs(0)=1 → 返回 1
+    → dfs(4)=1
+  → dfs(8)=1 ✅
+
+结果：true
+```
+
+### 代码实现
+
+```java
+class Solution {
+    public boolean wordBreak(String s, List<String> wordDict) {
+        int maxLen = 0;
+        for (String word : wordDict) {
+            maxLen = Math.max(maxLen, word.length());  // 字典中最长单词长度
+        }
+        Set<String> words = new HashSet<>(wordDict);   // 哈希集合 O(1) 查字典
+        int n = s.length();
+        int[] memo = new int[n + 1];
+        Arrays.fill(memo, -1);
+
+        return dfs(n, maxLen, s, words, memo) == 1;
+    }
+
+    // dfs(i)：s 的前 i 个字符能否被拆分（1 能 / 0 不能）
+    private int dfs(int i, int maxLen, String s, Set<String> words, int[] memo) {
+        if (i == 0) {              // 空串可拆分
+            return 1;
+        }
+        if (memo[i] != -1) {       // 已算过
+            return memo[i];
+        }
+
+        // 枚举最后一段 s[j..i)，长度不超过 maxLen
+        for (int j = i - 1; j >= Math.max(i - maxLen, 0); j--) {
+            if (words.contains(s.substring(j, i))   // 最后一段在字典中
+                && dfs(j, maxLen, s, words, memo) == 1) {  // 前半段也能拆分
+                return memo[i] = 1;
+            }
+        }
+        return memo[i] = 0;
+    }
+}
+```
+
+### 复杂度分析
+
+| 维度 | 结果 |
+|------|------|
+| ⏱ 时间复杂度 | **O(n × maxLen)** — 每个位置最多枚举 maxLen 个切分点，substring 也要 O(长度) |
+| 🧠 空间复杂度 | **O(n)** — memo 数组 + 递归栈 |
+
+---
+
+## 小总结
+
+| 要点 | 说明 |
+|------|------|
+| 算法名称 | 记忆化搜索（后缀拆分） |
+| 算法类型 | 动态规划、字符串 |
+| 核心技巧 | **`dfs(i) = ∃j: s[j..i) ∈ 字典 且 dfs(j)`——枚举最后一段递归判断前半段** |
+| maxLen 剪枝 | 最后一段长度 ≤ 字典最长单词，枚举范围从 O(i) 压到 O(maxLen) |
+| 为什么用 Set | `words.contains` O(1) 查字典，比 List 的 O(n) 快 |
+| 用 int 而非 boolean memo | -1 未算 / 0 不能 / 1 能——boolean 无法区分"未算"和"false" |
+| 关联题目 | [322. 零钱兑换](day29-动态规划hot100-part2.md)——同样的一维记忆化框架 |
+
+### 一句话记住
+
+> **「枚举最后一段，查字典 + 递归前半——maxLen 剪枝，memo 防重算。」**
+
+---
+
 *练习日期：2026-08-11*
