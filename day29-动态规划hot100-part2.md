@@ -126,4 +126,132 @@ class Solution {
 
 ---
 
+## 题目：零钱兑换（Coin Change）
+
+**LeetCode 322 | 动态规划 Hot100 | 难度：🟡 中等**
+
+### 题目描述
+
+给你一个整数数组 `coins`，表示不同面额的硬币；以及一个整数 `amount`，表示总金额。
+
+计算并返回可以凑成总金额所需的**最少的硬币个数**。如果没有任何一种硬币组合能组成总金额，返回 `-1`。
+
+你可以认为每种硬币的数量是**无限的**。
+
+### 示例
+
+```
+输入：coins = [1, 2, 5], amount = 11
+输出：3
+解释：11 = 5 + 5 + 1
+
+输入：coins = [2], amount = 3
+输出：-1
+
+输入：coins = [1], amount = 0
+输出：0
+```
+
+---
+
+## 解法：记忆化搜索（完全背包）
+
+### 思路
+
+和 279 完全平方数是**同一个模板**——完全背包：硬币是"可无限取"的物品，求凑出 `amount` 的最少数量。
+
+```
+dfs(i, c)：用前 i+1 种硬币（coins[0..i]）凑出金额 c 的最少数量
+
+边界：
+  i < 0 → 没有硬币可用：c==0 时用 0 个，否则不可能（返回 INF/2）
+
+决策（第 i 种硬币选或不选，可重复选）：
+  如果 c < coins[i] → 放不下这种硬币，只能不选 → dfs(i-1, c)
+  否则 → min(不选, 选)：
+    不选：dfs(i-1, c)
+    选：  dfs(i, c - coins[i]) + 1   ← i 不变（可重复选）
+```
+
+### 思考方式图解
+
+```
+coins = [1, 2, 5], amount = 11
+
+dfs(2, 11) = min(dfs(1, 11), dfs(2, 6)+1)
+  dfs(1, 11) = min(dfs(0, 11), dfs(1, 9)+1)
+    dfs(0, 11) = 11（全用 1 元）
+    dfs(1, 9) = min(dfs(0,9), dfs(1,7)+1) ... 最终 dfs(1,11) = min(11, 5+1=6)? 
+    → 实际递归过程省略，最后 dfs(1,11)=6（5+2+2+2? 不对，只用前两种 [1,2]）
+  dfs(2, 6) = min(dfs(1,6), dfs(2,1)+1)
+    dfs(1,6) = 3（2+2+2）
+    dfs(2,1) = min(dfs(1,1), 放不下5) = 1（1 元）
+    → dfs(2,6) = min(3, 1+1) = 2 ✅（5+1）
+  → dfs(2,11) = min(6, 2+1) = 3 ✅（5+5+1）
+
+结果：3 ✅
+```
+
+### 代码实现
+
+```java
+class Solution {
+    public int coinChange(int[] coins, int amount) {
+        int n = coins.length;
+        int[][] memo = new int[n][amount + 1];
+        for (int[] row : memo) {
+            Arrays.fill(row, -1);
+        }
+
+        int ans = dfs(n - 1, amount, coins, memo);
+        return ans < Integer.MAX_VALUE / 2 ? ans : -1;  // INF/2 表示凑不出来
+    }
+
+    // dfs(i, c)：用 coins[0..i] 凑出金额 c 的最少数量
+    private int dfs(int i, int c, int[] coins, int[][] memo) {
+        if (i < 0) {                            // 没有硬币可用
+            return c == 0 ? 0 : Integer.MAX_VALUE / 2;  // 用 INF/2 防止 +1 溢出
+        }
+        if (memo[i][c] != -1) {                 // 已算过
+            return memo[i][c];
+        }
+
+        if (c < coins[i]) {                     // 放不下这种硬币，只能不选
+            return memo[i][c] = dfs(i - 1, c, coins, memo);
+        }
+
+        // 不选 dfs(i-1,c)；选 dfs(i, c-coins[i])+1（i 不变可重复选）
+        return memo[i][c] = Math.min(dfs(i - 1, c, coins, memo),
+                                     dfs(i, c - coins[i], coins, memo) + 1);
+    }
+}
+```
+
+### 复杂度分析
+
+| 维度 | 结果 |
+|------|------|
+| ⏱ 时间复杂度 | **O(n × amount)** — n 种硬币 × amount 个金额，每个状态算一次 |
+| 🧠 空间复杂度 | **O(n × amount)** — memo 二维数组 |
+
+---
+
+## 小总结
+
+| 要点 | 说明 |
+|------|------|
+| 算法名称 | 记忆化搜索（完全背包） |
+| 算法类型 | 动态规划、背包 |
+| 核心技巧 | **硬币可无限取，`dfs(i, c-coins[i])+1` 中 i 不变；与 279 完全平方数同一模板** |
+| 为什么用 INF/2 | `Integer.MAX_VALUE/2` 作为"不可能"标记——`+1` 不会溢出成负数 |
+| 返回 -1 的判断 | `ans < INF/2` 才是真正凑得出来，否则返回 -1 |
+| 与 279 的区别 | 279 物品是自动生成的平方数；322 物品是给定的 coins 数组，且多了"凑不出返回 -1" |
+| 关联题目 | [279. 完全平方数](day29-动态规划hot100-part2.md)——完全背包同款模板 |
+
+### 一句话记住
+
+> **「硬币无限取，凑 amount 取最少——INF/2 防溢出，凑不出返回 -1。」**
+
+---
+
 *练习日期：2026-08-11*
