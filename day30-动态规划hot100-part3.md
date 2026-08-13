@@ -333,4 +333,149 @@ class Solution {
 
 ---
 
+## 题目：分割等和子集（Partition Equal Subset Sum）
+
+**LeetCode 416 | 动态规划 Hot100 | 难度：🟡 中等**
+
+### 题目描述
+
+给你一个**只包含正整数**的**非空**数组 `nums`。请你判断是否可以将这个数组分割成两个子集，使得两个子集的元素和相等。
+
+### 示例
+
+```
+输入：nums = [1,5,11,5]
+输出：true
+解释：数组可以分割成 [1,5,5] 和 [11]
+
+输入：nums = [1,2,3,5]
+输出：false
+解释：数组不能分割成两个元素和相等的子集
+```
+
+---
+
+## 解法：记忆化搜索（0/1 背包）
+
+### 思路
+
+**问题转化**：能否把数组分成和相等的两个子集 ⟺ **能否选出一些数，使它们的和 = 总和的一半 `target`**。
+
+```
+1. 总和 s 为奇数 → 不可能平分 → false
+2. target = s / 2
+3. 在 nums 中选子集凑 target——这就是 0/1 背包（每个数选或不选，只能用一次！）
+```
+
+```
+dfs(i, j)：在 nums[0..i] 中能否选出子集凑出和 j
+
+  如果 i < 0 → 没有数字可选了：j == 0 成功，否则失败
+  如果 j < nums[i] → 装不下 nums[i]，只能不选 → dfs(i-1, j)
+  否则 → 选或选不都试：
+    选：dfs(i-1, j-nums[i])
+    不选：dfs(i-1, j)
+    只要有一个成功即可（||）
+```
+
+**与完全背包的区别**：这里每个数字**只能用一次**（0/1 背包），所以选了 `nums[i]` 后递归的是 `i-1`（往前推进）；而 279/322 是完全背包（可重复用），选了之后 `i` 不变。
+
+### 思考方式图解
+
+```
+nums = [1, 5, 11, 5], s = 22, target = 11
+
+dfs(3, 11)：nums[3]=5，能装下
+  选 5：dfs(2, 6)
+    不选 11：dfs(1, 6)
+      不选 5：dfs(0, 6)
+        选 1：dfs(-1, 5) → i<0, j=5 ≠ 0 → false
+        不选 1：dfs(-1, 6) → false
+        5 装不下 → false
+      选 5：dfs(0, 1)
+        选 1：dfs(-1, 0) → j==0 → true ✅
+        → dfs(0,1)=true
+      → dfs(1,6)=true（选了 5 和 1）
+    → dfs(2,6)=true
+  → dfs(3,11)=true ✅（选了 5+1+5=11）
+
+结果：true ✅
+```
+
+### 代码实现
+
+```java
+class Solution {
+    public boolean canPartition(int[] nums) {
+        int s = 0;
+        for (int x : nums) {
+            s += x;
+        }
+        if (s % 2 != 0) {          // 总和奇数，不可能平分
+            return false;
+        }
+
+        int n = nums.length;
+        int target = s / 2;
+        // memo[i][j]：nums[0..i] 能否凑出 j；-1 未算，1=true，0=false
+        int[][] memo = new int[n][target + 1];
+        for (int[] row : memo) {
+            Arrays.fill(row, -1);
+        }
+
+        return dfs(n - 1, target, nums, memo);
+    }
+
+    // dfs(i, j)：nums[0..i] 中能否选出子集凑出和 j
+    private boolean dfs(int i, int j, int[] nums, int[][] memo) {
+        if (i < 0) {                       // 没有数字可选了
+            return j == 0;                 // 刚好凑到 0 成功，否则失败
+        }
+        if (memo[i][j] != -1) {            // 已算过
+            return memo[i][j] == 1;
+        }
+
+        boolean res;
+        if (j < nums[i]) {                 // 装不下 nums[i]，只能不选
+            res = dfs(i - 1, j, nums, memo);
+        } else {                           // 选 或 不选，二选一
+            res = dfs(i - 1, j - nums[i], nums, memo)  // 选（0/1 背包：i-1 推进）
+               || dfs(i - 1, j, nums, memo);           // 不选
+        }
+
+        memo[i][j] = res ? 1 : 0;          // 存结果
+        return res;
+    }
+}
+```
+
+### 复杂度分析
+
+| 维度 | 结果 |
+|------|------|
+| ⏱ 时间复杂度 | **O(n × target)** — n 个元素 × target 个容量状态 |
+| 🧠 空间复杂度 | **O(n × target)** — memo 二维数组 |
+
+> **优化**：0/1 背包可以压缩成一维 DP（倒序遍历），空间降到 **O(target)**。
+
+---
+
+## 小总结
+
+| 要点 | 说明 |
+|------|------|
+| 算法名称 | 记忆化搜索（0/1 背包） |
+| 算法类型 | 动态规划、背包 |
+| 核心技巧 | **问题转化为 0/1 背包：能否选出子集凑出总和一半；每个数只能用一次** |
+| 与完全背包的区别 | 完全背包（279/322）选了 `i` 不推进；0/1 背包（416）选了 `i-1` 推进 |
+| 提前剪枝 | 总和为奇数 → 直接 false，不进入 DP |
+| 为什么 memo 用 int | -1 未算 / 0 false / 1 true——boolean 无法区分"未算"和"false" |
+| 关联题目 | [322. 零钱兑换](day29-动态规划hot100-part2.md)——完全背包版对比 |
+
+### 一句话记住
+
+> **「平分问题转背包，凑 target 一半——0/1 选完 i 推进，奇数直接 false。」**
+
+---
+
 *练习日期：2026-08-13*
