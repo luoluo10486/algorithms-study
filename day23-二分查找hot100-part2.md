@@ -564,4 +564,176 @@ class Solution {
 
 ---
 
+## 题目：寻找两个正序数组的中位数（Median of Two Sorted Arrays）
+
+**LeetCode 4 | 二分查找 Hot100 | 难度：🔴 困难**
+
+### 题目描述
+
+给定两个长度分别为 `m` 和 `n` 的**升序（正序）**数组 `nums1` 和 `nums2`。
+
+请你找出并返回这两个**正序数组的****中位数**，并且算法的时间复杂度应为 **O(log(m + n))**。
+
+### 示例
+
+```
+输入：nums1 = [1,3], nums2 = [2]
+输出：2.00000
+解释：合并后为 [1,2,3]，中位数 2
+
+输入：nums1 = [1,2], nums2 = [3,4]
+输出：2.50000
+解释：合并后为 [1,2,3,4]，中位数 (2+3)/2 = 2.5
+```
+
+---
+
+## 解法一：合并 + 排序（直观法，你的代码）
+
+### 思路
+
+最直白的做法：把两个数组合并成一个，排序，然后按总长度取中位数。
+
+```
+合并 → 排序 → 取中点
+  奇数长度：中位数 = merged[mid]
+  偶数长度：中位数 = (merged[mid] + merged[mid+1]) / 2.0
+```
+
+### 代码实现
+
+```java
+class Solution {
+    public double findMedianSortedArrays(int[] a, int[] b) {
+        int m = a.length;
+        int n = b.length;
+        int[] merged = new int[m + n];
+        System.arraycopy(a, 0, merged, 0, m);
+        System.arraycopy(b, 0, merged, m, n);
+        Arrays.sort(merged);
+
+        int s = m + n;
+        int k = (s - 1) / 2;
+        return s % 2 > 0 ? merged[k] : (merged[k] + merged[k + 1]) / 2.0;
+    }
+}
+```
+
+> **正确性**：你的代码完全正确。中点下标 `k = (s-1)/2` 对奇数 `s` 正好取中间、对偶数 `s` 取左中，`merged[k]`/`merged[k+1]` 即两个中间元素；`/2.0` 强制浮点除法，结果正确。
+> **代价**：`Arrays.sort` 是 O((m+n)log(m+n))，**没有用到"两个数组已经有序"这个关键性质**，且新建了 O(m+n) 数组。面试中通常要求 O(log(m+n))，所以需要解法二。
+
+### 复杂度分析
+
+| 维度 | 结果 |
+|------|------|
+| ⏱ 时间复杂度 | **O((m+n)log(m+n))** — 排序主导 |
+| 🧠 空间复杂度 | **O(m+n)** — 合并数组 |
+
+---
+
+## 解法二：二分查找划分（真正的 O(log(min(m,n))) 解法）
+
+### 思路
+
+中位数本质上是在「把两个数组拼起来后，前一半（较小的一半）的分割线」。核心思想：**在较短的数组上二分一个分割点 `i`，让两个数组被切成「左半 / 右半」，且左半恰好包含较小的一半元素**。
+
+```
+设 a 取前 i 个、b 取前 j 个进入"左半"，则：
+  j = (m + n + 1) / 2 - i        ← 保证左半元素数 = ceil((m+n)/2)，比右半多 0 或 1 个
+
+合法分割的判定（左半最大值 ≤ 右半最小值）：
+  a[i-1] <= b[j]   且   b[j-1] <= a[i]
+
+不满足就调整 i：
+  a[i-1] > b[j]  → i 太大（a 左边进多了）→ 左移 i
+  否则           → i 可行或偏小 → 右移 i 试探更优
+
+取到划分后：
+  奇数 (m+n) → 中位数 = max(a[i-1], b[j-1])            （左半最大值）
+  偶数 (m+n) → 中位数 = (max(左半) + min(右半)) / 2.0
+```
+
+**为什么在较短数组上二分？** 复杂度由二分区间长度决定，取 `min(m,n)` 保证最坏 O(log(min(m,n))) ≤ O(log(m+n))。
+
+### 思考方式图解
+
+```
+a = [1, 3],  b = [2]       m=2, n=1, totalLeft = (2+1+1)/2 = 2
+（a 较短，在 a 上二分 i）
+
+i=1: j = 2-1 = 1
+  a[i-1]=a[0]=1, b[j]=b[1] 越界→MAX
+  b[j-1]=b[0]=2, a[i]=a[1]=3
+  判断 a[i-1](1) <= b[j](MAX) ✅ 且 b[j-1](2) <= a[i](3) ✅ → 合法
+  左半 = {1, 2}，右半 = {3} → 奇数 → 中位数 = max(1,2) = 2 ✅
+```
+
+### 代码实现
+
+```java
+class Solution {
+    public double findMedianSortedArrays(int[] a, int[] b) {
+        // 保证在较短数组上二分，复杂度 O(log(min(m,n)))
+        if (a.length > b.length) {
+            int[] t = a; a = b; b = t;
+        }
+        int m = a.length, n = b.length;
+        int totalLeft = (m + n + 1) / 2;   // 左半应有元素个数（奇数时左半多一个）
+
+        int left = 0, right = m;           // 在 a 的「前 i 个」上二分
+        while (left < right) {
+            int i = left + (right - left) / 2;   // a 取前 i 个
+            int j = totalLeft - i;               // b 取前 j 个（保证左右数量平衡）
+            if (a[i - 1] > b[j]) {
+                right = i - 1;                    // i 太大，a 左边进多了 → 左移
+            } else {
+                left = i + 1;                     // i 可行或偏小 → 右移试探
+            }
+        }
+        int i = left, j = totalLeft - i;
+
+        // 边界：i==0 表示 a 全在右半；i==m 表示 a 全在左半（b 同理）
+        int aLeft  = i == 0 ? Integer.MIN_VALUE : a[i - 1];
+        int aRight = i == m ? Integer.MAX_VALUE : a[i];
+        int bLeft  = j == 0 ? Integer.MIN_VALUE : b[j - 1];
+        int bRight = j == n ? Integer.MAX_VALUE : b[j];
+
+        if ((m + n) % 2 == 1) {
+            return Math.max(aLeft, bLeft);                 // 奇数：左半最大值
+        }
+        return (Math.max(aLeft, bLeft) + Math.min(aRight, bRight)) / 2.0;
+    }
+}
+```
+
+> **关键点**：用 `Integer.MIN_VALUE / MAX_VALUE` 处理"某数组全部落入左半 / 右半"的边界，避免 `a[i-1]`/`a[i]` 越界。循环的 `while (left < right)` + `left = i+1 / right = i-1` 是闭区间二分的经典收口写法，终止时 `left == right == i`。
+
+### 复杂度分析
+
+| 维度 | 结果 |
+|------|------|
+| ⏱ 时间复杂度 | **O(log(min(m, n)))** — 在较短数组上二分 |
+| 🧠 空间复杂度 | **O(1)** — 仅用几个变量 |
+
+---
+
+## 小总结
+
+| 要点 | 说明 |
+|------|------|
+| 算法名称 | 二分查找划分（Partition / 划分数组找中位数） |
+| 算法类型 | 二分查找、双数组、困难题 |
+| 朴素解法 | 合并 + 排序 O((m+n)log(m+n))、O(m+n) 空间（你的代码，正确但非最优） |
+| 最优解法 | **在较短数组二分分割点 i，令 j = (m+n+1)/2 - i，使左半 = 较小一半；判定 a[i-1]≤b[j] 且 b[j-1]≤a[i]** |
+| 中位数取法 | 奇数 → `max(左半)`；偶数 → `(max(左半)+min(右半))/2.0` |
+| 边界处理 | 用 `±∞` 哨兵处理某数组全在单侧 |
+| 复杂度 | O(log(min(m,n))) 时间、O(1) 空间，满足题目要求 |
+| 关联题目 | [33/153. 旋转数组](day23-二分查找hot100-part2.md)、[34. 区间查找](day23-二分查找hot100-part2.md)——同属二分家族 |
+
+### 一句话记住
+
+> **「两有序数组求中位 = 在短数组上二分分割点，让左半装下较小一半，a[i-1]≤b[j] 且 b[j-1]≤a[i] 即合法。」**
+
+---
+
 *练习日期：2026-08-01*

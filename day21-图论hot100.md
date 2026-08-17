@@ -442,4 +442,174 @@ class Solution {
 
 ---
 
+## 题目：实现 Trie（前缀树）
+
+**LeetCode 208 | 设计 / 字典树 / 技巧 Hot100 | 难度：🟡 中等**
+
+### 题目描述
+
+**Trie**（发音类似 "try"），又称**前缀树**或**字典树**，是一种有序树，用于保存关联数组，其中的键通常是字符串。
+
+请你实现 `Trie` 类：
+
+- `Trie()` 初始化前缀树对象。
+- `void insert(String word)` 向前缀树中插入字符串 `word`。
+- `boolean search(String word)` 如果字符串 `word` 在前缀树中，返回 `true`（也就是**曾经完整插入过**）；否则返回 `false`。
+- `boolean startsWith(String prefix)` 如果之前插入的字符串中**有以 `prefix` 为前缀**的，返回 `true`；否则返回 `false`。
+
+### 示例
+
+```
+输入：
+["Trie", "insert", "search", "search", "startsWith", "insert", "search"]
+[[], ["apple"], ["apple"], ["app"], ["app"], ["app"], ["app"]]
+
+输出：
+[null, null, true, false, true, null, true]
+
+解释：
+insert("apple") → 树里有了 apple
+search("apple") → true （完整单词存在）
+search("app")   → false（没完整插入过 app）
+startsWith("app") → true（apple 以 app 为前缀）
+insert("app")   → 现在 app 也完整存在了
+search("app")   → true
+```
+
+---
+
+## 解法：多叉树 + 三态查找
+
+### 思路
+
+Trie 的本质是一棵**多叉树**：每个节点挂 26 个孩子（对应 a~z），外加一个 `end` 标记表示"从根到这里的路径是否构成一个完整单词"。
+
+```
+根节点 (root)
+ ├─ a ─ p ─ p ─ p ─ l ─ e (end=true)      ← insert("apple")
+ │            └ (end=true)                 ← 若再 insert("app")，这里标 end=true
+ └─ b ─ ...
+```
+
+三个操作都围绕"**沿字符往下走**"展开，核心差异在 `find` 的返回值设计：
+
+```
+find(prefix) 返回三态：
+  0 → 路径中途断了（某个字符没有对应孩子）→ 前缀都不存在
+  1 → 走到了前缀末尾，但 end==false → 是某个单词的"前缀"，但本身不是完整单词
+  2 → 走到了末尾且 end==true       → 是一个完整插入过的单词
+
+search(word)     = find(word) == 2      （必须走到末尾且是完整单词）
+startsWith(pre)  = find(pre)  != 0      （只要能走完前缀就算，不管是不是完整单词）
+```
+
+### 思考方式图解
+
+```
+insert("apple"):
+  cur=root
+  a: root.son[a]==null? 建节点 → cur 下移
+  p: 建/走 → 下移
+  p: 建/走 → 下移
+  p: 建/走 → 下移
+  l: 建/走 → 下移
+  e: 建/走 → 下移
+  末尾 cur.end = true          ✅
+
+search("app"):
+  a→p→p 都走得通，停在 p(p) 节点
+  cur.end == false → 返回 1 → search: 1==2? false ✅（没完整插过 app）
+
+startsWith("app"):
+  同样走到 p(p)，find 返回 1 → 1!=0 → true ✅（apple 以 app 为前缀）
+
+search("apple"):
+  a→p→p→p→l→e 走完，cur.end==true → 返回 2 → 2==2 true ✅
+```
+
+### 代码实现
+
+```java
+class Trie {
+    // 内部节点：26 个孩子 + 结束标记
+    private static class Node {
+        Node[] son = new Node[26];
+        boolean end = false;       // 从根到本节点是否构成完整单词
+    }
+    private final Node root = new Node();   // 根节点（不存字符）
+
+    public Trie() {}               // 根节点在字段初始化时已建好
+
+    // 插入：沿路径建节点，末尾标 end=true
+    public void insert(String word) {
+        Node cur = root;
+        for (char c : word.toCharArray()) {
+            c -= 'a';                          // char 转 0~25 下标
+            if (cur.son[c] == null) {
+                cur.son[c] = new Node();      // 缺则补建
+            }
+            cur = cur.son[c];
+        }
+        cur.end = true;
+    }
+
+    // 查找单词：必须是完整单词（end==true）才返回 true
+    public boolean search(String word) {
+        return find(word) == 2;
+    }
+
+    // 前缀查询：能走完前缀即可（不要求 end）
+    public boolean startsWith(String prefix) {
+        return find(prefix) != 0;
+    }
+
+    // 三态查找：0=路径断 / 1=走到但非单词 / 2=完整单词
+    private int find(String word) {
+        Node cur = root;
+        for (char c : word.toCharArray()) {
+            c -= 'a';
+            if (cur.son[c] == null) {
+                return 0;                      // 没这个分支 → 前缀都不存在
+            }
+            cur = cur.son[c];
+        }
+        return cur.end ? 2 : 1;
+    }
+}
+```
+
+> **代码正确性**：你的实现完全正确，且用"三态 `find`"把 `search` 和 `startsWith` 统一到一个方法里，干净利落。几个小亮点：
+> - `c -= 'a'` 改的是 for-each 的**循环副本**（Java 中 for-each 遍历数组时 `c` 是每次元素的拷贝），不会污染原字符串，合法且简洁；若想更直观也可写成 `int idx = c - 'a'`。
+> - `root` 用 `final` + 字段初始化，构造函数留空即可，避免忘记建根。
+> - 区分 `search`/`startsWith` 的关键就在 `end` 标记：`startsWith` 只看"能不能走完"，`search` 额外要求"走完时恰好是单词结尾"。
+
+> **延伸（高频考点）**：Trie 的威力在"多串共享前缀、按前缀聚合"。Hot100 里常配合它出题，例如 [212. 单词搜索 II](https://leetcode.cn/problems/word-search-ii/)（在矩阵里找所有字典单词，Trie + 回溯剪枝）、[677. 键值映射](https://leetcode.cn/problems/map-sum-pairs/)（带权重前缀和）。进阶还可把 `son` 改成 `Map<Character, Node>` 支持任意字符集，或用**压缩 Trie（Radix Tree）**省空间。
+
+### 复杂度分析
+
+| 维度 | 结果 |
+|------|------|
+| ⏱ 时间复杂度 | 每个操作 **O(L)**，`L` 为单词/前缀长度（逐字符走一层） |
+| 🧠 空间复杂度 | **O(Σ L)** — 所有插入单词的字符总数（每个字符对应一个节点）；最坏全无公共前缀时即总字符数 |
+
+---
+
+## 小总结
+
+| 要点 | 说明 |
+|------|------|
+| 数据结构 | Trie / 前缀树 / 字典树（每个节点 26 个孩子 + end 标记） |
+| 核心操作 | **insert 沿路建节点标 end；search 要求走到末尾且 end；startsWith 走到末尾即可** |
+| 三态 find | **0=路径断 / 1=走到但非单词 / 2=完整单词** —— 统一 search 与 startsWith |
+| search vs startsWith | 差异全在 `end` 标记：前者要 end==true，后者只看能否走完 |
+| 时间 | 每个操作 O(L)，与字典大小无关（这是 Trie 优于哈希表的场景优势） |
+| 空间 | O(ΣL) 节点数，最坏等于所有字符串字符总和 |
+| 关联题目 | [212. 单词搜索 II](https://leetcode.cn/problems/word-search-ii/)（Trie+回溯）、[677. 键值映射](https://leetcode.cn/problems/map-sum-pairs/)（前缀和）、[14. 最长公共前缀](https://leetcode.cn/problems/longest-common-prefix/)（也可用 Trie） |
+
+### 一句话记住
+
+> **「Trie = 每个节点挂 26 个孩子 + end 标记；search 要走到末尾且 end，startsWith 走到末尾即可——三态 find 一统两者。」**
+
+---
+
 *练习日期：2026-07-30*
