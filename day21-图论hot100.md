@@ -293,4 +293,153 @@ class Solution {
 
 ---
 
+## 题目：课程表（Course Schedule）
+
+**LeetCode 207 | 图论 Hot100 | 难度：🟡 中等**
+
+### 题目描述
+
+你这个学期必须选修 `numCourses` 门课程，记为 `0` 到 `numCourses - 1`。
+
+在选修某些课程之前需要先修读另一些课程，先修关系用 `prerequisites` 给出：`prerequisites[i] = [a, b]` 表示想要学习课程 `a`，你需要先完成课程 `b`。
+
+判断是否**可能**完成所有课程的学习？如果可以则返回 `true`，否则返回 `false`。
+
+### 示例
+
+```
+输入：numCourses = 2, prerequisites = [[1,0]]
+输出：true
+解释：想学 1 先学 0，顺序 0→1 可行。
+
+输入：numCourses = 2, prerequisites = [[1,0],[0,1]]
+输出：false
+解释：1 依赖 0，0 又依赖 1，形成环，永远学不完。
+```
+
+---
+
+## 解法：DFS 三色标记法（拓扑排序 / 判环）
+
+### 思路
+
+把课程和依赖关系看成一张**有向图**：边 `b → a` 表示"先学 b 才能学 a"。
+
+能否学完所有课 = 这张有向图**有没有环**（有环 → 循环依赖 → 不可能；无环 → 可以做拓扑排序 → 可能）。
+
+用经典的**三色标记（白/灰/黑）**做 DFS 判环：
+
+```
+colors[x] 的状态：
+  0 = 白色（未访问）
+  1 = 灰色（正在当前 DFS 路径上，已经入栈但还没回溯完毕）
+  2 = 黑色（已经彻底访问完，安全）
+
+DFS(x)：
+  colors[x] = 1（染灰，标记"我正在这条路径上"）
+  对每个邻居 y：
+    如果 colors[y] == 1 → 遇到"灰色"邻居，说明从当前路径绕回了自己 → 有环！返回 true
+    如果 colors[y] == 0 且 dfs(y) 也发现环 → 返回 true
+  colors[x] = 2（染黑，安全结束）
+  返回 false（这条路径上没有环）
+
+主函数：对每个白色节点都 DFS 一遍（图可能不连通），只要任意一次发现环就返回 false。
+```
+
+**为什么"遇到灰色"就是环？** 灰色代表"还在当前调用栈里、没回溯完"。如果从当前路径又走到一个灰色节点，说明存在一条 `x → ... → y → ... → x` 的回路，即循环依赖。黑色节点则是"已经确认安全、不属于任何环"，再遇到它不会误判。
+
+> **运算符优先级提醒**：代码里 `colors[y]==1 || colors[y]==0 && dfs(y,...)` 等价于 `colors[y]==1 || (colors[y]==0 && dfs(y,...))`（`&&` 优先级高于 `||`）。若 `colors[y]==1` 直接短路返回 true；否则只有白色才递归。逻辑正确，但**建议加括号写成 `colors[y]==1 || (colors[y]==0 && dfs(...))`**，可读性更好、避免隐患。
+
+### 思考方式图解
+
+```
+numCourses=2, prerequisites=[[1,0],[0,1]]  → 有环，应返回 false
+
+建图（b→a）：
+  0 → 1
+  1 → 0
+          0 ⇄ 1   （互相指向，环）
+
+DFS(0)：colors[0]=1
+  → 邻居 1：colors[1]==0，DFS(1)
+      DFS(1)：colors[1]=1
+        → 邻居 0：colors[0]==1（灰色！）→ 返回 true（发现环）
+  → DFS(0) 返回 true → 主函数返回 false ✅
+
+numCourses=2, prerequisites=[[1,0]]  → 无环，应返回 true
+建图：0 → 1
+DFS(0)：colors[0]=1 → 邻居 1：colors[1]=0，DFS(1)
+  DFS(1)：colors[1]=1 → 无邻居 → colors[1]=2，返回 false
+colors[0]=2，返回 false（无环）
+主函数：没发现任何环 → 返回 true ✅
+```
+
+### 代码实现
+
+```java
+class Solution {
+    public boolean canFinish(int numCourses, int[][] prerequisites) {
+        // 建邻接表：边 b → a（b 是 a 的先修课）
+        List<Integer>[] g = new ArrayList[numCourses];
+        Arrays.setAll(g, i -> new ArrayList<>());
+        for (int[] p : prerequisites) {
+            g[p[1]].add(p[0]);     // p[1] 指向 p[0]
+        }
+
+        int[] colors = new int[numCourses];  // 0白 1灰 2黑
+        for (int i = 0; i < numCourses; i++) {
+            // 从每个白色节点出发 DFS；任一路径发现环就返回 false
+            if (colors[i] == 0 && dfs(i, g, colors)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // 返回 true 表示在 x 出发的路径上发现了环
+    private boolean dfs(int x, List<Integer>[] g, int[] colors) {
+        colors[x] = 1;                       // 染灰：进入当前路径
+        for (int y : g[x]) {
+            if (colors[y] == 1 ||            // 遇到灰色邻居 → 有环
+                colors[y] == 0 && dfs(y, g, colors)) {  // 或白色邻居递归发现环
+                return true;
+            }
+        }
+        colors[x] = 2;                       // 染黑：安全结束
+        return false;
+    }
+}
+```
+
+> **其他解法对比**：
+> - **BFS 拓扑排序（Kahn 算法）**：算每个节点入度，入度为 0 的入队，逐步剥层；剥完的节点数 < 总课程数说明有环。时间 O(V+E)，不用递归，更不容易爆栈。
+> - **DFS 三色**（本题写法）：更直观体现"路径上的环"，但图深时递归栈可能溢出。
+
+### 复杂度分析
+
+| 维度 | 结果 |
+|------|------|
+| ⏱ 时间复杂度 | **O(V + E)** — 每个节点、每条边都只访问一次（V=课程数，E=依赖数） |
+| 🧠 空间复杂度 | **O(V + E)** — 邻接表 O(E) + 递归栈/colors 数组 O(V) |
+
+---
+
+## 小总结
+
+| 要点 | 说明 |
+|------|------|
+| 算法名称 | DFS 三色标记法（拓扑排序 / 判环） |
+| 算法类型 | 图论、DFS、有向图、拓扑排序 |
+| 核心技巧 | **三色 0白/1灰/2黑；DFS 遇灰色邻居即环；全黑则无环** |
+| 建图方向 | `g[p[1]].add(p[0])`：`b → a` 表示先修 b 才能学 a |
+| 为何"灰=环" | 灰色在调用栈中未回溯，又走到它 = 存在回路（循环依赖） |
+| 返回语义 | 返回 false = 有环 = 无法修完；true = 无环 = 可拓扑排序完成 |
+| 关联题目 | [210. 课程表 II](https://leetcode.cn/problems/course-schedule-ii/)（输出拓扑序）、[207 的 BFS 版](https://leetcode.cn/problems/course-schedule/)（Kahn 算法） |
+
+### 一句话记住
+
+> **「课程表 = 建有向图判环：DFS 三色标记，遇灰色即循环依赖，学不完。」**
+
+---
+
 *练习日期：2026-07-30*
