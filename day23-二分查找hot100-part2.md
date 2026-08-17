@@ -620,7 +620,7 @@ class Solution {
 ```
 
 > **正确性**：你的代码完全正确。中点下标 `k = (s-1)/2` 对奇数 `s` 正好取中间、对偶数 `s` 取左中，`merged[k]`/`merged[k+1]` 即两个中间元素；`/2.0` 强制浮点除法，结果正确。
-> **代价**：`Arrays.sort` 是 O((m+n)log(m+n))，**没有用到"两个数组已经有序"这个关键性质**，且新建了 O(m+n) 数组。面试中通常要求 O(log(m+n))，所以需要解法二。
+> **代价**：`Arrays.sort` 是 O((m+n)log(m+n))，**没有用到"两个数组已经有序"这个关键性质**，且新建了 O(m+n) 数组。**⚠️ 不满足本题官方要求 `O(log(m+n))`**（你之前以为的 O(m+n) 它也达不到），仅作破冰/对照思路，正式提交请用解法二。
 
 ### 复杂度分析
 
@@ -631,89 +631,85 @@ class Solution {
 
 ---
 
-## 解法二：二分查找划分（真正的 O(log(min(m,n))) 解法）
+## 解法二：二分查找划分（O(log(min(m,n))) 解法，你的代码）
 
 ### 思路
 
-中位数本质上是在「把两个数组拼起来后，前一半（较小的一半）的分割线」。核心思想：**在较短的数组上二分一个分割点 `i`，让两个数组被切成「左半 / 右半」，且左半恰好包含较小的一半元素**。
+和解法一（合并 + 排序）不同，这版**不合并数组**，而是直接用二分查找在较短数组上定位「分割点 `i`」，把两个数组切成「左半 / 右半」，让左半恰好装下较小的那一半元素；中位数就由左半最大值、右半最小值决定。
 
-```
-设 a 取前 i 个、b 取前 j 个进入"左半"，则：
-  j = (m + n + 1) / 2 - i        ← 保证左半元素数 = ceil((m+n)/2)，比右半多 0 或 1 个
+核心公式：
+- `a` 取前 `i` 个、`b` 取前 `j = (m+n+1)/2 - i` 个进入左半（保证左半元素数 = ⌈(m+n)/2⌉）
+- 合法划分判定（左半最大值 ≤ 右半最小值）：`a[i] ≤ b[j+1]` 且 `b[j] ≤ a[i+1]`
 
-合法分割的判定（左半最大值 ≤ 右半最小值）：
-  a[i-1] <= b[j]   且   b[j-1] <= a[i]
+为了做**开区间二分**并彻底消除越界判断，代码把两个数组各自扩成带哨兵的版本：
+- `a` 长度 `m+2`：`a[0] = -∞`、`a[m+1] = +∞`、`a[1..m] = nums1`
+- `b` 长度 `n+2`：`b[0] = -∞`、`b[n+1] = +∞`、`b[1..n] = nums2`
 
-不满足就调整 i：
-  a[i-1] > b[j]  → i 太大（a 左边进多了）→ 左移 i
-  否则           → i 可行或偏小 → 右移 i 试探更优
+二分在开区间 `(left, right)` 上找 `i`，循环不变量是 `a[left] ≤ b[j+1]`（成立）且 `a[right] > b[j+1]`（不成立）。每轮取中点 `i`，若 `a[i] ≤ b[j+1]` 说明 `i` 偏小或刚好，把 `left` 推到 `i`；否则 `right = i`。循环结束 `left + 1 == right`，答案就是 `i = left`。
 
-取到划分后：
-  奇数 (m+n) → 中位数 = max(a[i-1], b[j-1])            （左半最大值）
-  偶数 (m+n) → 中位数 = (max(左半) + min(右半)) / 2.0
-```
-
-**为什么在较短数组上二分？** 复杂度由二分区间长度决定，取 `min(m,n)` 保证最坏 O(log(min(m,n))) ≤ O(log(m+n))。
-
-### 思考方式图解
-
-```
-a = [1, 3],  b = [2]       m=2, n=1, totalLeft = (2+1+1)/2 = 2
-（a 较短，在 a 上二分 i）
-
-i=1: j = 2-1 = 1
-  a[i-1]=a[0]=1, b[j]=b[1] 越界→MAX
-  b[j-1]=b[0]=2, a[i]=a[1]=3
-  判断 a[i-1](1) <= b[j](MAX) ✅ 且 b[j-1](2) <= a[i](3) ✅ → 合法
-  左半 = {1, 2}，右半 = {3} → 奇数 → 中位数 = max(1,2) = 2 ✅
-```
+> 这套划分法把复杂度从解法一的 O((m+n)log(m+n)) 直接压到 **O(log(min(m,n)))**，正是本题要求的量级（见下方「复杂度要求与合规说明」）。
 
 ### 代码实现
 
 ```java
 class Solution {
-    public double findMedianSortedArrays(int[] a, int[] b) {
-        // 保证在较短数组上二分，复杂度 O(log(min(m,n)))
-        if (a.length > b.length) {
-            int[] t = a; a = b; b = t;
+    public double findMedianSortedArrays(int[] nums1, int[] nums2) {
+        if (nums1.length > nums2.length) {
+            // 交换 nums1 和 nums2，保证下面的 i 可以从 0 开始枚举
+            int[] tmp = nums1;
+            nums1 = nums2;
+            nums2 = tmp;
         }
-        int m = a.length, n = b.length;
-        int totalLeft = (m + n + 1) / 2;   // 左半应有元素个数（奇数时左半多一个）
 
-        int left = 0, right = m;           // 在 a 的「前 i 个」上二分
-        while (left < right) {
-            int i = left + (right - left) / 2;   // a 取前 i 个
-            int j = totalLeft - i;               // b 取前 j 个（保证左右数量平衡）
-            if (a[i - 1] > b[j]) {
-                right = i - 1;                    // i 太大，a 左边进多了 → 左移
+        int m = nums1.length;
+        int n = nums2.length;
+        int[] a = new int[m + 2];
+        int[] b = new int[n + 2];
+        a[0] = b[0] = Integer.MIN_VALUE;
+        a[m + 1] = b[n + 1] = Integer.MAX_VALUE;
+        System.arraycopy(nums1, 0, a, 1, m);
+        System.arraycopy(nums2, 0, b, 1, n);
+
+        // 循环不变量：a[left] <= b[j+1]
+        // 循环不变量：a[right] > b[j+1]
+        int left = 0;
+        int right = m + 1;
+        while (left + 1 < right) { // 开区间 (left, right) 不为空
+            int i = left + (right - left) / 2;
+            int j = (m + n + 1) / 2 - i;
+            if (a[i] <= b[j + 1]) {
+                left = i; // 缩小二分区间为 (i, right)
             } else {
-                left = i + 1;                     // i 可行或偏小 → 右移试探
+                right = i; // 缩小二分区间为 (left, i)
             }
         }
-        int i = left, j = totalLeft - i;
 
-        // 边界：i==0 表示 a 全在右半；i==m 表示 a 全在左半（b 同理）
-        int aLeft  = i == 0 ? Integer.MIN_VALUE : a[i - 1];
-        int aRight = i == m ? Integer.MAX_VALUE : a[i];
-        int bLeft  = j == 0 ? Integer.MIN_VALUE : b[j - 1];
-        int bRight = j == n ? Integer.MAX_VALUE : b[j];
-
-        if ((m + n) % 2 == 1) {
-            return Math.max(aLeft, bLeft);                 // 奇数：左半最大值
-        }
-        return (Math.max(aLeft, bLeft) + Math.min(aRight, bRight)) / 2.0;
+        // 此时 left 等于 right-1
+        // a[left] <= b[j+1] 且 a[right] > b[(j-1)+1] = b[j]，所以答案是 i=left
+        int i = left;
+        int j = (m + n + 1) / 2 - i;
+        int max1 = Math.max(a[i], b[j]);
+        int min2 = Math.min(a[i + 1], b[j + 1]);
+        return (m + n) % 2 > 0 ? max1 : (max1 + min2) / 2.0;
     }
 }
 ```
 
-> **关键点**：用 `Integer.MIN_VALUE / MAX_VALUE` 处理"某数组全部落入左半 / 右半"的边界，避免 `a[i-1]`/`a[i]` 越界。循环的 `while (left < right)` + `left = i+1 / right = i-1` 是闭区间二分的经典收口写法，终止时 `left == right == i`。
+> **关键点**：用 `±∞` 哨兵数组包住后，判定式 `a[i] ≤ b[j+1]` 在任意 `i` 下都不会越界，整个二分过程**无需任何 `if` 边界判断**；`left` 从 `0`、`right` 从 `m+1` 出发，开区间 `(left, right)` 二分是经典写法，终止时 `left + 1 == right`，答案 `i = left`。
+
+### ⚠️ 复杂度要求与合规说明（重点）
+
+- **本题真实的官方要求**（已对照力扣/LeetCode 核实）：时间复杂度应为 **`O(log(m+n))`** —— 是对数级，不是你想的 `O(m+n)`（线性级）。你之前理解成 "O(m+n)"，其实官方要求更严。
+- 本解法（二分划分）时间 **O(log(min(m,n)))** ≤ O(log(m+n))，**满足**官方要求 ✅（也顺带满足你以为的 O(m+n)）。
+- 解法一（合并 + 排序）时间 **O((m+n)log(m+n))`**，**不满足**官方 O(log(m+n)) 要求 ❌，连你以为的 O(m+n) 也达不到（多一个 log 因子）。
+- 一句话：**你给的这版二分已经达标，无需"后续再优化"；需要优化的是解法一（归并），它才是那个不合规的。**
 
 ### 复杂度分析
 
 | 维度 | 结果 |
 |------|------|
 | ⏱ 时间复杂度 | **O(log(min(m, n)))** — 在较短数组上二分 |
-| 🧠 空间复杂度 | **O(1)** — 仅用几个变量 |
+| 🧠 空间复杂度 | **O(m+n)** — 两个哨兵数组 `a`、`b`（若想压到 O(1)，可改回"±∞ 变量哨兵"写法，即用 `i==0?-∞:a[i-1]` 这类判断，进阶可补） |
 
 ---
 
@@ -723,16 +719,17 @@ class Solution {
 |------|------|
 | 算法名称 | 二分查找划分（Partition / 划分数组找中位数） |
 | 算法类型 | 二分查找、双数组、困难题 |
-| 朴素解法 | 合并 + 排序 O((m+n)log(m+n))、O(m+n) 空间（你的代码，正确但非最优） |
-| 最优解法 | **在较短数组二分分割点 i，令 j = (m+n+1)/2 - i，使左半 = 较小一半；判定 a[i-1]≤b[j] 且 b[j-1]≤a[i]** |
+| 官方要求 | 时间复杂度 **O(log(m+n))**（已核实，是对数级要求，不是 O(m+n)） |
+| 解法一（朴素，不合规 ❌） | 合并 + 排序 O((m+n)log(m+n))、O(m+n) 空间；仅作破冰/对照，不满足官方要求 |
+| 解法二（二分，合规 ✅） | 哨兵数组 + 开区间二分分割点 i，令 j = (m+n+1)/2 - i；判定 a[i]≤b[j+1]；O(log(min(m,n))) 时间、O(m+n) 空间（你的代码） |
 | 中位数取法 | 奇数 → `max(左半)`；偶数 → `(max(左半)+min(右半))/2.0` |
-| 边界处理 | 用 `±∞` 哨兵处理某数组全在单侧 |
-| 复杂度 | O(log(min(m,n))) 时间、O(1) 空间，满足题目要求 |
+| 边界处理 | `±∞` 哨兵数组包住，判定式 `a[i]≤b[j+1]` 全程不越界、无需 `if` |
+| 合规结论 | 解法二满足 O(log(m+n))；解法一不满足，需优化的是解法一 |
 | 关联题目 | [33/153. 旋转数组](day23-二分查找hot100-part2.md)、[34. 区间查找](day23-二分查找hot100-part2.md)——同属二分家族 |
 
 ### 一句话记住
 
-> **「两有序数组求中位 = 在短数组上二分分割点，让左半装下较小一半，a[i-1]≤b[j] 且 b[j-1]≤a[i] 即合法。」**
+> **「两有序数组求中位 = 短数组上二分分割点 i，令 j=(m+n+1)/2-i 使左半装下较小一半，a[i]≤b[j+1] 即合法；用 ±∞ 哨兵数组免去越界判断，O(log(min(m,n))) 满足官方 O(log(m+n)) 要求。」**
 
 ---
 
